@@ -1,0 +1,13 @@
+# Datasets (DrugBank's license restricts redistribution; Twosides/BIOSNAP are large)
+data/
+
+# Trained model checkpoints (large binary files, easy to regenerate via src/train.py)
+results/*.pt
+
+# Python
+__pycache__/
+*.pyc
+
+# macOS
+.DS_Store
+docs/DDI_Review1.pptx
