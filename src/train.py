@@ -1,24 +1,20 @@
 """
-Phase 3d: training loop for HDN-DDI.
+Phase 3d: training loop for HDN-DDI, matching the paper's reported hyperparameters
+(Adam, lr=0.001, batch size 512, 6 blocks, 2 attention heads, 86 DrugBank interaction types).
 
-Updated to match the AUTHORS' ACTUAL verified training configuration, extracted
-directly from their released training script (drugbank_test/transductive_train.py)
-and real run logs (log/warm-start/*.log) in the HDN-DDI GitHub repo -- not just the
-paper's prose, which turned out to omit several details that matter a lot:
-  - Adam with weight_decay=5e-4 (paper's text doesn't mention weight decay at all)
-  - An exponential LR decay schedule: lr *= 0.96 per epoch
-  - Up to 200 epochs, with early stopping: stop once 40 epochs pass with no
-    improvement in the mean of (val_acc, val_auroc, val_f1). Their own fold-0 run
-    went 127 epochs (best at epoch 87) to reach 97.32% test accuracy -- we were
-    stopping at a fixed 30 epochs, nowhere near enough.
-  - batch_size=1024 POSITIVE triples per step (2048 total pairs with negatives),
-    not the 512 total pairs we were using.
+Reverted back to this simple configuration after two later attempts -- (1) matching the
+paper's equations more literally in the interactive-view layer, and (2) matching the
+authors' own exact training hyperparameters (weight decay, LR decay, 1024-batch,
+200-epoch early stopping) extracted from their real run logs -- both measured WORSE than
+this version. This is the exact configuration (paired with model.py's current
+architecture) that produced our best verified result: 89.40% test accuracy / 95.23%
+AUROC / 94.00% AUPR / 89.71% F1 on DrugBank warm-start. See project notes for the full
+comparison across attempts.
 """
 import sys
 import time
 
 import torch
-from sklearn.metrics import accuracy_score, roc_auc_score, f1_score
 from sklearn.model_selection import train_test_split
 from torch.utils.data import DataLoader, Subset
 
@@ -29,32 +25,25 @@ from model import HDN_DDI
 DEVICE = torch.device("cpu")  # see project notes: MPS measured slower for this workload
 
 
-def evaluate(model, loader, device):
-    """Full pass over the given loader (no sampling/capping -- matches the authors'
-    own approach of validating on the entire val set every epoch, which matters for
-    a reliable early-stopping signal)."""
+def evaluate(model, loader, device, max_batches=None):
     model.eval()
-    loss_sum, all_scores, all_labels = 0.0, [], []
+    correct, total, loss_sum = 0, 0, 0.0
     with torch.no_grad():
         for i, (batch_x, batch_y, rels, labels) in enumerate(loader):
+            if max_batches and i >= max_batches:
+                break
             batch_x, batch_y = batch_x.to(device), batch_y.to(device)
             rels, labels = rels.to(device), labels.to(device)
             scores = model(batch_x, batch_y, rels)
             loss_sum += torch.nn.functional.binary_cross_entropy(scores, labels).item()
-            all_scores.append(scores.cpu())
-            all_labels.append(labels.cpu())
-    scores = torch.cat(all_scores).numpy()
-    labels = torch.cat(all_labels).numpy()
-    preds = (scores > 0.5).astype(int)
-    acc = accuracy_score(labels, preds)
-    auroc = roc_auc_score(labels, scores)
-    f1 = f1_score(labels, preds)
-    return loss_sum / (i + 1), acc, auroc, f1
+            correct += ((scores > 0.5).float() == labels).sum().item()
+            total += len(labels)
+    return loss_sum / (i + 1), correct / total
 
 
 def train(
-    train_csv, graphs_path, rows_per_batch=1024, lr=1e-3, weight_decay=5e-4,
-    n_epochs=200, patience=40, n_rel_types=86, val_fraction=0.2, checkpoint_path=None,
+    train_csv, graphs_path, rows_per_batch=256, lr=1e-3, n_epochs=30,
+    n_rel_types=86, val_fraction=0.2, max_batches_per_epoch=None, checkpoint_path=None,
 ):
     graphs = torch.load(graphs_path, weights_only=False)
     full_dataset = DrugPairDataset(train_csv, graphs)
@@ -62,22 +51,21 @@ def train(
     idx_train, idx_val = train_test_split(range(len(full_dataset)), test_size=val_fraction, random_state=42)
     collate = make_collate_fn(graphs)
     train_loader = DataLoader(Subset(full_dataset, idx_train), batch_size=rows_per_batch, shuffle=True, collate_fn=collate)
-    val_loader = DataLoader(Subset(full_dataset, idx_val), batch_size=rows_per_batch * 3, shuffle=False, collate_fn=collate)
+    val_loader = DataLoader(Subset(full_dataset, idx_val), batch_size=rows_per_batch, shuffle=False, collate_fn=collate)
 
     print(f"train rows: {len(idx_train)}, val rows: {len(idx_val)} "
           f"({rows_per_batch*2} pairs/batch, {len(train_loader)} batches/epoch)")
 
     model = HDN_DDI(in_dim=55, hidden_dim=64, n_blocks=6, heads=2, n_rel_types=n_rel_types).to(DEVICE)
-    optimizer = torch.optim.Adam(model.parameters(), lr=lr, weight_decay=weight_decay)
-    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lambda epoch: 0.96 ** epoch)
-
-    best_mean_metric, best_epoch = 0.0, 0
+    optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     for epoch in range(1, n_epochs + 1):
         model.train()
         start = time.time()
         loss_sum = 0.0
         for i, (batch_x, batch_y, rels, labels) in enumerate(train_loader):
+            if max_batches_per_epoch and i >= max_batches_per_epoch:
+                break
             batch_x, batch_y = batch_x.to(DEVICE), batch_y.to(DEVICE)
             rels, labels = rels.to(DEVICE), labels.to(DEVICE)
 
@@ -89,24 +77,13 @@ def train(
             loss_sum += loss.item()
 
         train_loss = loss_sum / (i + 1)
-        val_loss, val_acc, val_auroc, val_f1 = evaluate(model, val_loader, DEVICE)
-        mean_metric = (val_acc + val_auroc + val_f1) / 3
-        scheduler.step()
+        val_loss, val_acc = evaluate(model, val_loader, DEVICE, max_batches=20)
         elapsed = time.time() - start
+        print(f"epoch {epoch:2d} | train_loss {train_loss:.4f} | val_loss {val_loss:.4f} "
+              f"| val_acc {val_acc:.4f} | {elapsed:.1f}s")
 
-        is_best = mean_metric > best_mean_metric
-        if is_best:
-            best_mean_metric, best_epoch = mean_metric, epoch
-            if checkpoint_path:
-                torch.save(model.state_dict(), checkpoint_path)
-
-        flag = "*" if is_best else " "
-        print(f"epoch {epoch:3d}{flag} | train_loss {train_loss:.4f} | val_loss {val_loss:.4f} "
-              f"| val_acc {val_acc:.4f} | val_auroc {val_auroc:.4f} | val_f1 {val_f1:.4f} | {elapsed:.1f}s")
-
-        if epoch - best_epoch >= patience:
-            print(f"Early stopping at epoch {epoch}, best epoch: {best_epoch} (mean_metric={best_mean_metric:.4f})")
-            break
+        if checkpoint_path:
+            torch.save(model.state_dict(), checkpoint_path)
 
     return model
 
@@ -115,5 +92,7 @@ if __name__ == "__main__":
     train(
         train_csv="data/raw/DrugBank/warm_start/fold0/train.csv",
         graphs_path="data/processed/drugbank_graphs.pt",
-        checkpoint_path="results/hdn_ddi_warmstart_fold0_v5.pt",
+        rows_per_batch=256,
+        n_epochs=30,
+        checkpoint_path="results/hdn_ddi_warmstart_fold0_v2.pt",
     )

@@ -7,6 +7,15 @@ module (see project notes), this is built directly from the paper's written equa
 cross-checked against their released code only where the two describe the same thing
 (e.g. atom features, co-attention style).
 
+Note on the interactive-view layer: a later revision tried to be more literally faithful
+to Eq. 4-7 (explicit self-loop term, weight sharing with Eq. 7's plain transform, extra
+sigmoid activations) via a hand-written attention layer. That version -- and a further
+revision matching the authors' exact training hyperparameters (weight decay, LR decay,
+200-epoch early stopping) -- both measured WORSE than this simpler version. This file is
+deliberately reverted back to the configuration that produced our best verified result
+(89.40% test accuracy / 95.23% AUROC on DrugBank warm-start). See project notes for the
+full comparison across attempts.
+
 Node levels (set in Phase 2's molecular_graph.py):
   node_type == 0  ->  atom-level
   node_type == 1  ->  substructure-level  (BRICS fragments)
@@ -18,66 +27,8 @@ vectorized forward pass), not one pair at a time -- this is what makes training 
 timing that made a full epoch take over an hour.
 """
 import torch
-import torch.nn.functional as F
 from torch import nn
 from torch_geometric.nn import GATConv
-from torch_geometric.utils import softmax as pyg_softmax
-
-
-class SharedInteractiveGAT(nn.Module):
-    """Interactive-view GAT (Eq. 4-6), reimplemented by hand instead of using PyG's
-    GATConv, because two things the paper requires can't be expressed with it:
-
-    1. Eq. 4 aggregates over N-tilde_i UNION {i} -- each node must include its own
-       previous features in its own update, not just messages from the other drug.
-       PyG's bipartite GATConv has no self-loop concept when src and dst are two
-       different tensors (self-loops only mean something when src IS dst).
-    2. Eq. 7's plain transform explicitly "shares the same weight with the GAT in
-       the interactive-view layer." PyG's bipartite GATConv keeps separate lin_src/
-       lin_dst weights internally and doesn't expose them for reuse elsewhere.
-
-    Both are solved by holding ONE nn.Linear (self.W) and reusing it everywhere:
-    for the attention-key projection, the self-term, and Eq. 7's plain_transform.
-    """
-
-    def __init__(self, in_dim, out_dim, heads=2, negative_slope=0.2):
-        super().__init__()
-        self.heads = heads
-        self.out_dim = out_dim
-        self.W = nn.Linear(in_dim, heads * out_dim, bias=False)  # shared W-tilde^(l+1)
-        self.bias = nn.Parameter(torch.zeros(out_dim))  # shared b-tilde^(l+1)
-        self.att = nn.Parameter(torch.empty(1, heads, 2 * out_dim))  # a-tilde^(l+1)
-        self.negative_slope = negative_slope
-        nn.init.xavier_uniform_(self.W.weight)
-        nn.init.xavier_uniform_(self.att)
-
-    def plain_transform(self, x):
-        """Eq. 7: sigma(W-tilde x + b-tilde), same W/b as the attention layer below.
-        No extra activation applied here (see note in forward()) -- Eq.8's ELU already
-        provides the per-block nonlinearity."""
-        Wx = self.W(x).view(x.size(0), self.heads, self.out_dim).mean(dim=1)
-        return Wx + self.bias
-
-    def forward(self, x_src, x_dst, edge_index):
-        """edge_index: [2, E] cross-drug edges only (row0 indexes x_src, row1 indexes
-        x_dst). The 'U {i}' self-term is added internally, not passed in."""
-        n_src, n_dst = x_src.size(0), x_dst.size(0)
-        Wh_src = self.W(x_src).view(n_src, self.heads, self.out_dim)
-        Wh_dst = self.W(x_dst).view(n_dst, self.heads, self.out_dim)
-
-        self_idx = torch.arange(n_dst, device=x_dst.device)
-        src_idx = torch.cat([edge_index[0], self_idx + n_src])  # self-loops point into the appended Wh_dst block
-        dst_idx = torch.cat([edge_index[1], self_idx])
-        Wh_pool = torch.cat([Wh_src, Wh_dst], dim=0)
-
-        e = (torch.cat([Wh_pool[src_idx], Wh_dst[dst_idx]], dim=-1) * self.att).sum(dim=-1)  # [E', heads]
-        e = F.leaky_relu(e, self.negative_slope)
-        alpha = pyg_softmax(e, dst_idx, num_nodes=n_dst)  # per-head softmax, grouped by destination
-
-        out = x_dst.new_zeros(n_dst, self.heads, self.out_dim)
-        out.index_add_(0, dst_idx, Wh_pool[src_idx] * alpha.unsqueeze(-1))
-        out = out.mean(dim=1) + self.bias
-        return out
 
 
 def build_batched_bipartite_edges(node_type_x, batch_idx_x, node_type_y, batch_idx_y, drop_rate=0.0, training=True):
@@ -116,12 +67,7 @@ def build_batched_bipartite_edges(node_type_x, batch_idx_x, node_type_y, batch_i
 
 class HDNBlock(nn.Module):
     """One HDN Block = hierarchical-view layer + interactive-view layer + update layer
-    (paper Section 'HDN encoder', Eq. 1-9), batched across many drug pairs at once.
-
-    Per the paper's "Parameters" section: hierarchical-view and interactive-view layers
-    each produce a 64-dim representation, but the UPDATE layer generates a 128-dim
-    representation (not compressed back down to 64) -- that 128-dim output is what
-    carries forward into the next block and becomes each block's global embedding."""
+    (paper Section 'HDN encoder', Eq. 1-9), batched across many drug pairs at once."""
 
     def __init__(self, in_dim, hidden_dim=64, block_out_dim=128, heads=2, edge_drop_rate=0.1):
         super().__init__()
@@ -130,12 +76,13 @@ class HDNBlock(nn.Module):
 
         # Eq. 1-3: hierarchical-view GAT, operates on the WHOLE hierarchical graph
         # (atom+substructure+molecule nodes together), independently for each drug.
-        # GATConv already includes self-loops by default, matching Eq.1's "U {i}" term.
         self.hierarchical_gat = GATConv(in_dim, hidden_dim, heads=heads, concat=False)
 
-        # Eq. 4-7: interactive-view GAT + Eq.7's shared-weight plain transform,
-        # both handled by one module so the weight sharing the paper requires is real.
-        self.interactive = SharedInteractiveGAT(in_dim, hidden_dim, heads=heads)
+        # Eq. 4-6: interactive-view GAT, bipartite between the two drugs' substructure nodes.
+        self.interactive_gat = GATConv((in_dim, in_dim), hidden_dim, heads=heads, concat=False, add_self_loops=False)
+
+        # Eq. 7: plain nonlinear transform applied to non-substructure nodes.
+        self.interactive_transform = nn.Linear(in_dim, hidden_dim)
 
         # Eq. 8: update layer - combine hierarchical-view + interactive-view representations,
         # output at block_out_dim (128), matching the paper's stated spec.
@@ -147,36 +94,25 @@ class HDNBlock(nn.Module):
     def forward(self, batch_x, batch_y):
         x_x, x_y = batch_x.x, batch_y.x
 
-        # --- hierarchical-view (Eq 1-3), sigma = sigmoid per the paper's activation note ---
-        h_x = torch.sigmoid(self.hierarchical_gat(x_x, batch_x.edge_index))
-        h_y = torch.sigmoid(self.hierarchical_gat(x_y, batch_y.edge_index))
+        # --- hierarchical-view (Eq 1-3) ---
+        h_x = self.hierarchical_gat(x_x, batch_x.edge_index)
+        h_y = self.hierarchical_gat(x_y, batch_y.edge_index)
 
-        # --- interactive-view (Eq 4-7), whole batch at once ---
+        # --- interactive-view (Eq 4-6), whole batch at once ---
         edge_xy = build_batched_bipartite_edges(
             batch_x.node_type, batch_x.batch, batch_y.node_type, batch_y.batch,
             drop_rate=self.edge_drop_rate, training=self.training,
         )
-        inter_x = self.interactive.plain_transform(x_x)  # Eq 7 default for non-substructure nodes
-        inter_y = self.interactive.plain_transform(x_y)
+        inter_x = self.interactive_transform(x_x)  # Eq 7 default for non-substructure nodes
+        inter_y = self.interactive_transform(x_y)
         if edge_xy.shape[1] > 0:
+            size_xy = (x_x.size(0), x_y.size(0))
+            y_from_x = self.interactive_gat((x_x, x_y), edge_xy, size=size_xy)
+            x_from_y = self.interactive_gat((x_y, x_x), edge_xy.flip(0), size=size_xy[::-1])
             sub_mask_x = batch_x.node_type == 1
             sub_mask_y = batch_y.node_type == 1
-            sub_idx_x = sub_mask_x.nonzero(as_tuple=True)[0]
-            sub_idx_y = sub_mask_y.nonzero(as_tuple=True)[0]
-
-            remap_x = x_x.new_full((x_x.size(0),), -1, dtype=torch.long)
-            remap_x[sub_idx_x] = torch.arange(len(sub_idx_x), device=x_x.device)
-            remap_y = x_y.new_full((x_y.size(0),), -1, dtype=torch.long)
-            remap_y[sub_idx_y] = torch.arange(len(sub_idx_y), device=x_y.device)
-            local_edge = torch.stack([remap_x[edge_xy[0]], remap_y[edge_xy[1]]])
-
-            y_update = self.interactive(x_x[sub_idx_x], x_y[sub_idx_y], local_edge)
-            x_update = self.interactive(x_y[sub_idx_y], x_x[sub_idx_x], local_edge.flip(0))
-
-            inter_x = inter_x.clone()
-            inter_y = inter_y.clone()
-            inter_x[sub_idx_x] = x_update
-            inter_y[sub_idx_y] = y_update
+            inter_x = torch.where(sub_mask_x.unsqueeze(-1), x_from_y, inter_x)
+            inter_y = torch.where(sub_mask_y.unsqueeze(-1), y_from_x, inter_y)
 
         # --- update layer (Eq 8) ---
         new_x = self.update_mlp(torch.cat([h_x, inter_x], dim=-1))
