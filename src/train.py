@@ -44,6 +44,7 @@ def evaluate(model, loader, device, max_batches=None):
 def train(
     train_csv, graphs_path, rows_per_batch=256, lr=1e-3, n_epochs=30,
     n_rel_types=86, val_fraction=0.2, max_batches_per_epoch=None, checkpoint_path=None,
+    use_edge_features=False,
 ):
     graphs = torch.load(graphs_path, weights_only=False)
     full_dataset = DrugPairDataset(train_csv, graphs)
@@ -54,9 +55,11 @@ def train(
     val_loader = DataLoader(Subset(full_dataset, idx_val), batch_size=rows_per_batch, shuffle=False, collate_fn=collate)
 
     print(f"train rows: {len(idx_train)}, val rows: {len(idx_val)} "
-          f"({rows_per_batch*2} pairs/batch, {len(train_loader)} batches/epoch)")
+          f"({rows_per_batch*2} pairs/batch, {len(train_loader)} batches/epoch) "
+          f"| use_edge_features={use_edge_features}")
 
-    model = HDN_DDI(in_dim=55, hidden_dim=64, n_blocks=6, heads=2, n_rel_types=n_rel_types).to(DEVICE)
+    model = HDN_DDI(in_dim=55, hidden_dim=64, n_blocks=6, heads=2, n_rel_types=n_rel_types,
+                     use_edge_features=use_edge_features).to(DEVICE)
     optimizer = torch.optim.Adam(model.parameters(), lr=lr)
 
     for epoch in range(1, n_epochs + 1):

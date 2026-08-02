@@ -67,16 +67,31 @@ def build_batched_bipartite_edges(node_type_x, batch_idx_x, node_type_y, batch_i
 
 class HDNBlock(nn.Module):
     """One HDN Block = hierarchical-view layer + interactive-view layer + update layer
-    (paper Section 'HDN encoder', Eq. 1-9), batched across many drug pairs at once."""
+    (paper Section 'HDN encoder', Eq. 1-9), batched across many drug pairs at once.
 
-    def __init__(self, in_dim, hidden_dim=64, block_out_dim=128, heads=2, edge_drop_rate=0.1):
+    Gap 1 (edge-aware attention): when use_edge_features=True, the hierarchical-view GAT
+    incorporates real bond chemistry (bond type, conjugation, ring membership -- see
+    molecular_graph.py's bond_features()) directly into the attention score, via PyG's
+    native edge_dim support: e_ij = a^T[Wh_i || Wh_j || W_e*edge_attr_ij]. This is the
+    principled formula, distinct from the naive constant-scalar edge gates that SSI-DDI,
+    DSN-DDI, and HDN-DDI all report degrade performance -- see project notes for why this
+    project targets that specific gap. Only the hierarchical-view layer uses this: the
+    interactive-view layer connects substructures across two different drugs, which have
+    no real bond between them, so edge features don't apply there."""
+
+    def __init__(self, in_dim, hidden_dim=64, block_out_dim=128, heads=2, edge_drop_rate=0.1,
+                 use_edge_features=False, edge_dim=6):
         super().__init__()
         self.hidden_dim = hidden_dim
         self.edge_drop_rate = edge_drop_rate
+        self.use_edge_features = use_edge_features
 
         # Eq. 1-3: hierarchical-view GAT, operates on the WHOLE hierarchical graph
         # (atom+substructure+molecule nodes together), independently for each drug.
-        self.hierarchical_gat = GATConv(in_dim, hidden_dim, heads=heads, concat=False)
+        self.hierarchical_gat = GATConv(
+            in_dim, hidden_dim, heads=heads, concat=False,
+            edge_dim=edge_dim if use_edge_features else None,
+        )
 
         # Eq. 4-6: interactive-view GAT, bipartite between the two drugs' substructure nodes.
         self.interactive_gat = GATConv((in_dim, in_dim), hidden_dim, heads=heads, concat=False, add_self_loops=False)
@@ -95,8 +110,12 @@ class HDNBlock(nn.Module):
         x_x, x_y = batch_x.x, batch_y.x
 
         # --- hierarchical-view (Eq 1-3) ---
-        h_x = self.hierarchical_gat(x_x, batch_x.edge_index)
-        h_y = self.hierarchical_gat(x_y, batch_y.edge_index)
+        if self.use_edge_features:
+            h_x = self.hierarchical_gat(x_x, batch_x.edge_index, edge_attr=batch_x.edge_attr)
+            h_y = self.hierarchical_gat(x_y, batch_y.edge_index, edge_attr=batch_y.edge_attr)
+        else:
+            h_x = self.hierarchical_gat(x_x, batch_x.edge_index)
+            h_y = self.hierarchical_gat(x_y, batch_y.edge_index)
 
         # --- interactive-view (Eq 4-6), whole batch at once ---
         edge_xy = build_batched_bipartite_edges(
@@ -124,13 +143,15 @@ class HDNEncoder(nn.Module):
     """Stacks L HDN Blocks; collects the molecule-level node's representation from
     every block as that block's "global embedding" (Eq. 9), for every pair in the batch."""
 
-    def __init__(self, in_dim, hidden_dim=64, block_out_dim=128, n_blocks=6, heads=2, edge_drop_rate=0.1):
+    def __init__(self, in_dim, hidden_dim=64, block_out_dim=128, n_blocks=6, heads=2, edge_drop_rate=0.1,
+                 use_edge_features=False, edge_dim=6):
         super().__init__()
         self.n_blocks = n_blocks
         self.blocks = nn.ModuleList()
         dim = in_dim
         for _ in range(n_blocks):
-            self.blocks.append(HDNBlock(dim, hidden_dim, block_out_dim, heads=heads, edge_drop_rate=edge_drop_rate))
+            self.blocks.append(HDNBlock(dim, hidden_dim, block_out_dim, heads=heads, edge_drop_rate=edge_drop_rate,
+                                         use_edge_features=use_edge_features, edge_dim=edge_dim))
             dim = block_out_dim  # every block after the first receives the 128-dim update output
 
     def forward(self, batch_x, batch_y):
@@ -173,9 +194,11 @@ class HDNDecoder(nn.Module):
 
 
 class HDN_DDI(nn.Module):
-    def __init__(self, in_dim=55, hidden_dim=64, block_out_dim=128, n_blocks=6, heads=2, n_rel_types=86, edge_drop_rate=0.1):
+    def __init__(self, in_dim=55, hidden_dim=64, block_out_dim=128, n_blocks=6, heads=2, n_rel_types=86, edge_drop_rate=0.1,
+                 use_edge_features=False, edge_dim=6):
         super().__init__()
-        self.encoder = HDNEncoder(in_dim, hidden_dim, block_out_dim, n_blocks=n_blocks, heads=heads, edge_drop_rate=edge_drop_rate)
+        self.encoder = HDNEncoder(in_dim, hidden_dim, block_out_dim, n_blocks=n_blocks, heads=heads, edge_drop_rate=edge_drop_rate,
+                                   use_edge_features=use_edge_features, edge_dim=edge_dim)
         self.decoder = HDNDecoder(block_out_dim, n_rel_types)
 
     def forward(self, batch_x, batch_y, rel_ids):

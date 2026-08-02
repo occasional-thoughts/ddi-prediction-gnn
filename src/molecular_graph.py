@@ -72,6 +72,29 @@ def atom_features(atom):
     )
 
 
+BOND_TYPES = [
+    Chem.rdchem.BondType.SINGLE,
+    Chem.rdchem.BondType.DOUBLE,
+    Chem.rdchem.BondType.TRIPLE,
+    Chem.rdchem.BondType.AROMATIC,
+]  # 4 entries
+
+EDGE_ATTR_DIM = 6  # 4 (bond type) + 1 (conjugated) + 1 (in ring)
+
+
+def bond_features(bond):
+    """6-dim real chemical bond feature vector (Gap 1): 4 (bond type one-hot) +
+    1 (is conjugated) + 1 (is in a ring). Used only for real atom-atom bonds --
+    the structural (atom-substructure, substructure-molecule) edges get a zero
+    vector here since they aren't real chemistry, see EDGE_ATTR_DIM usage below."""
+    return torch.tensor(
+        _one_hot(bond.GetBondType(), BOND_TYPES)
+        + [int(bond.GetIsConjugated())]
+        + [int(bond.IsInRing())],
+        dtype=torch.float,
+    )
+
+
 def decompose_fragments(mol):
     """Return a list of atom-index tuples, one per chemical substructure."""
     n_atoms = mol.GetNumAtoms()
@@ -111,6 +134,9 @@ def smiles_to_hierarchical_graph(smiles):
     Data fields:
       x            - node features (atoms: 55-dim RDKit features; substructure/molecule: mean of members)
       edge_index   - bidirectional edges, all levels combined
+      edge_attr    - 6-dim real bond chemistry (Gap 1) for atom-atom edges; zero vector for
+                     structural (atom-substructure, substructure-molecule) edges, which aren't
+                     real chemical bonds
       node_type    - 0=atom, 1=substructure, 2=molecule
       edge_type    - 0=atom-atom bond, 1=atom-substructure membership, 2=substructure-molecule
       frag_groups  - raw atom-index groups per substructure (kept for interpretability/case studies)
@@ -121,13 +147,16 @@ def smiles_to_hierarchical_graph(smiles):
 
     n_atoms = mol.GetNumAtoms()
     atom_feats = [atom_features(a) for a in mol.GetAtoms()]
+    zero_edge_attr = [0.0] * EDGE_ATTR_DIM
 
-    src, dst, edge_type = [], [], []
+    src, dst, edge_type, edge_attr = [], [], [], []
     for bond in mol.GetBonds():
         i, j = bond.GetBeginAtomIdx(), bond.GetEndAtomIdx()
+        feat = bond_features(bond).tolist()
         src += [i, j]
         dst += [j, i]
         edge_type += [0, 0]
+        edge_attr += [feat, feat]
 
     frag_groups = decompose_fragments(mol)
     n_frags = len(frag_groups)
@@ -140,6 +169,7 @@ def smiles_to_hierarchical_graph(smiles):
             src += [frag_node_id, a]
             dst += [a, frag_node_id]
             edge_type += [1, 1]
+            edge_attr += [zero_edge_attr, zero_edge_attr]
 
     mol_node_id = n_atoms + n_frags
     mol_feat = torch.stack(frag_feats).mean(dim=0) if frag_feats else torch.zeros(55)
@@ -148,15 +178,18 @@ def smiles_to_hierarchical_graph(smiles):
         src += [mol_node_id, frag_node_id]
         dst += [frag_node_id, mol_node_id]
         edge_type += [2, 2]
+        edge_attr += [zero_edge_attr, zero_edge_attr]
 
     x = torch.stack(atom_feats + frag_feats + [mol_feat])
     node_type = torch.tensor([0] * n_atoms + [1] * n_frags + [2], dtype=torch.long)
     edge_index = torch.tensor([src, dst], dtype=torch.long)
     edge_type = torch.tensor(edge_type, dtype=torch.long)
+    edge_attr = torch.tensor(edge_attr, dtype=torch.float)
 
     return HierGraphData(
         x=x,
         edge_index=edge_index,
+        edge_attr=edge_attr,
         edge_type=edge_type,
         node_type=node_type,
         frag_groups=frag_groups,

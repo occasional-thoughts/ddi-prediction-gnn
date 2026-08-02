@@ -17,13 +17,14 @@ from model import HDN_DDI
 DEVICE = torch.device("cpu")
 
 
-def full_evaluate(test_csv, graphs_path, checkpoint_path, batch_size=512, n_rel_types=86):
+def full_evaluate(test_csv, graphs_path, checkpoint_path, batch_size=512, n_rel_types=86, use_edge_features=False):
     graphs = torch.load(graphs_path, weights_only=False)
     dataset = DrugPairDataset(test_csv, graphs)
     loader = DataLoader(dataset, batch_size=batch_size // 2, shuffle=False, collate_fn=make_collate_fn(graphs))
     print(f"test rows: {len(dataset)} -> {len(dataset)*2} pairs with negatives, {len(loader)} batches")
 
-    model = HDN_DDI(in_dim=55, hidden_dim=64, n_blocks=6, heads=2, n_rel_types=n_rel_types).to(DEVICE)
+    model = HDN_DDI(in_dim=55, hidden_dim=64, n_blocks=6, heads=2, n_rel_types=n_rel_types,
+                     use_edge_features=use_edge_features).to(DEVICE)
     model.load_state_dict(torch.load(checkpoint_path, map_location=DEVICE, weights_only=True))
     model.eval()
 
