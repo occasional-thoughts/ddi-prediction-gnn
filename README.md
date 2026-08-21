@@ -48,7 +48,7 @@ Not included in this repository — DrugBank's terms of use restrict redistribut
 - **Twosides**: derived by [Zitnik et al.](https://doi.org/10.1093/bioinformatics/bty294) — 645 drugs, 4.58M interactions, 963 side-effect types
 - **BIOSNAP**: [Stanford SNAP ChCh-Miner](http://snap.stanford.edu/biodata/datasets/10001/10001-ChCh-Miner.html) — 1,514 drugs, 48,514 untyped interaction pairs
 
-## Status
+## Current Status
 
 Base model architecture, data pipeline, and training loop are implemented and running; currently validating against HDN-DDI's published benchmarks before building the three extensions above. See `docs/PROGRESS.md` for the detailed phase-by-phase log.
 
