@@ -17,6 +17,15 @@ class DrugPairDataset(Dataset):
     def __init__(self, csv_path, graphs):
         self.df = pd.read_csv(csv_path)
         self.graphs = graphs
+        # HDN-DDI's released warm-start files carry the negative sample directly in a
+        # "Neg samples" column; the cold-start files (same dataset, different split
+        # script) instead leave "Neg samples" empty and put that same "<drug_id>$h/$t"
+        # string in a column called "split" -- just an inconsistency in their released
+        # data, not a different sampling scheme. Detect which one this file actually uses.
+        if "Neg samples" in self.df.columns and self.df["Neg samples"].notna().any():
+            self.neg_col = "Neg samples"
+        else:
+            self.neg_col = "split"
 
     def __len__(self):
         return len(self.df)
@@ -24,7 +33,7 @@ class DrugPairDataset(Dataset):
     def __getitem__(self, idx):
         row = self.df.iloc[idx]
         d1, d2, rel = row["d1"], row["d2"], int(row["type"])
-        neg_id, side = row["Neg samples"].split("$")
+        neg_id, side = row[self.neg_col].split("$")
 
         if side == "h":
             neg_d1, neg_d2 = neg_id, d2

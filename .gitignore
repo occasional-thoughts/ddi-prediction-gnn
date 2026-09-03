@@ -10,4 +10,14 @@ __pycache__/
 
 # macOS
 .DS_Store
+
+# Office lock files
+~$*.docx
+~$*.pptx
 docs/DDI_Review1.pptx
+docs/DDI_Review2.pptx
+docs/DDI_Review2_for_guide.pptx
+docs/DDI_Review2_Report.docx
+docs/DDI_Review2_Outcome_Report.docx
+docs/review2_work/
+docs/review1_unpacked/

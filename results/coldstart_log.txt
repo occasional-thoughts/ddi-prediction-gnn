@@ -1,0 +1,109 @@
+/opt/anaconda3/lib/python3.13/site-packages/pandas/core/computation/expressions.py:23: UserWarning: Pandas requires version '2.10.2' or newer of 'numexpr' (version '2.10.1' currently installed).
+  from pandas.core.computation.check import NUMEXPR_INSTALLED
+[fold0] train rows: 108396, val rows: 15388 (424 batches/epoch)
+[fold0] epoch  1 | train_loss 0.6190 | val_loss 0.5838 | val_acc 0.6583 | 524.0s
+[fold0] epoch  2 | train_loss 0.5336 | val_loss 0.5365 | val_acc 0.7100 | 577.6s
+[fold0] epoch  3 | train_loss 0.4667 | val_loss 0.5483 | val_acc 0.7171 | 410.3s
+[fold0] epoch  4 | train_loss 0.4185 | val_loss 0.6208 | val_acc 0.7057 | 390.0s
+[fold0] epoch  5 | train_loss 0.3788 | val_loss 0.6709 | val_acc 0.7146 | 391.5s
+[fold0] epoch  6 | train_loss 0.3452 | val_loss 0.6564 | val_acc 0.7169 | 394.2s
+[fold0] epoch  7 | train_loss 0.3188 | val_loss 0.7569 | val_acc 0.7173 | 396.2s
+[fold0] epoch  8 | train_loss 0.2956 | val_loss 0.8540 | val_acc 0.7058 | 391.2s
+[fold0] epoch  9 | train_loss 0.2760 | val_loss 0.8039 | val_acc 0.7179 | 374.6s
+[fold0] epoch 10 | train_loss 0.2604 | val_loss 0.8860 | val_acc 0.7229 | 376.0s
+[fold0] epoch 11 | train_loss 0.2458 | val_loss 0.9069 | val_acc 0.7170 | 381.6s
+[fold0] epoch 12 | train_loss 0.2328 | val_loss 1.0210 | val_acc 0.7142 | 378.7s
+[fold0] epoch 13 | train_loss 0.2210 | val_loss 1.0012 | val_acc 0.7175 | 379.7s
+[fold0] epoch 14 | train_loss 0.2092 | val_loss 1.1496 | val_acc 0.7072 | 378.5s
+[fold0] epoch 15 | train_loss 0.2024 | val_loss 1.0647 | val_acc 0.7112 | 369.7s
+[fold0] epoch 16 | train_loss 0.1926 | val_loss 1.2205 | val_acc 0.6961 | 368.4s
+[fold0] epoch 17 | train_loss 0.1858 | val_loss 1.2383 | val_acc 0.6967 | 370.7s
+[fold0] epoch 18 | train_loss 0.1800 | val_loss 1.1676 | val_acc 0.7126 | 369.8s
+[fold0] epoch 19 | train_loss 0.1723 | val_loss 1.2789 | val_acc 0.7017 | 368.9s
+[fold0] epoch 20 | train_loss 0.1648 | val_loss 1.1752 | val_acc 0.7108 | 364.2s
+[fold0] epoch 21 | train_loss 0.1605 | val_loss 1.2307 | val_acc 0.6953 | 355.8s
+[fold0] epoch 22 | train_loss 0.1540 | val_loss 1.1687 | val_acc 0.6984 | 368.0s
+[fold0] epoch 23 | train_loss 0.1490 | val_loss 1.3697 | val_acc 0.6950 | 368.8s
+[fold0] epoch 24 | train_loss 0.1441 | val_loss 1.2054 | val_acc 0.7092 | 387.8s
+[fold0] epoch 25 | train_loss 0.1426 | val_loss 1.3661 | val_acc 0.7059 | 391.4s
+[fold0] epoch 26 | train_loss 0.1381 | val_loss 1.3785 | val_acc 0.7008 | 380.2s
+[fold0] epoch 27 | train_loss 0.1358 | val_loss 1.2187 | val_acc 0.7059 | 400.5s
+[fold0] epoch 28 | train_loss 0.1291 | val_loss 1.3367 | val_acc 0.7056 | 386.8s
+[fold0] epoch 29 | train_loss 0.1286 | val_loss 1.4950 | val_acc 0.7051 | 397.7s
+[fold0] epoch 30 | train_loss 0.1254 | val_loss 1.4871 | val_acc 0.7103 | 399.4s
+[fold0] training done, evaluating on S1/S2...
+[fold0] S1 (n=14738): ACC 58.30% AUROC 67.75% AUPR 68.15% F1 36.32%
+[fold0] S2 (n=121310): ACC 70.92% AUROC 80.64% AUPR 81.33% F1 64.10%
+[fold1] train rows: 114617, val rows: 11733 (448 batches/epoch)
+[fold1] epoch  1 | train_loss 0.6271 | val_loss 0.6403 | val_acc 0.6420 | 419.9s
+[fold1] epoch  2 | train_loss 0.5572 | val_loss 0.6202 | val_acc 0.6873 | 445.9s
+[fold1] epoch  3 | train_loss 0.4972 | val_loss 0.6682 | val_acc 0.7241 | 449.6s
+[fold1] epoch  4 | train_loss 0.4424 | val_loss 0.6427 | val_acc 0.7194 | 445.0s
+[fold1] epoch  5 | train_loss 0.4002 | val_loss 0.6674 | val_acc 0.7452 | 450.1s
+[fold1] epoch  6 | train_loss 0.3614 | val_loss 0.6857 | val_acc 0.7421 | 434.7s
+[fold1] epoch  7 | train_loss 0.3299 | val_loss 0.7575 | val_acc 0.7220 | 432.6s
+[fold1] epoch  8 | train_loss 0.3070 | val_loss 0.8484 | val_acc 0.7262 | 430.9s
+[fold1] epoch  9 | train_loss 0.2828 | val_loss 0.7174 | val_acc 0.7394 | 443.4s
+[fold1] epoch 10 | train_loss 0.2653 | val_loss 0.8355 | val_acc 0.7380 | 453.8s
+[fold1] epoch 11 | train_loss 0.2482 | val_loss 0.8676 | val_acc 0.7395 | 439.3s
+[fold1] epoch 12 | train_loss 0.2363 | val_loss 0.9156 | val_acc 0.7251 | 437.7s
+[fold1] epoch 13 | train_loss 0.2235 | val_loss 0.9179 | val_acc 0.7340 | 445.7s
+[fold1] epoch 14 | train_loss 0.2103 | val_loss 0.9501 | val_acc 0.7316 | 445.3s
+[fold1] epoch 15 | train_loss 0.2019 | val_loss 1.0782 | val_acc 0.7151 | 453.2s
+[fold1] epoch 16 | train_loss 0.1946 | val_loss 0.9572 | val_acc 0.7372 | 443.1s
+[fold1] epoch 17 | train_loss 0.1886 | val_loss 0.9370 | val_acc 0.7391 | 417.6s
+[fold1] epoch 18 | train_loss 0.1778 | val_loss 1.0939 | val_acc 0.7355 | 408.0s
+[fold1] epoch 19 | train_loss 0.1712 | val_loss 1.2343 | val_acc 0.7202 | 406.8s
+[fold1] epoch 20 | train_loss 0.1665 | val_loss 1.2163 | val_acc 0.7259 | 405.6s
+[fold1] epoch 21 | train_loss 0.1602 | val_loss 1.1353 | val_acc 0.7236 | 432.5s
+[fold1] epoch 22 | train_loss 0.1563 | val_loss 1.1687 | val_acc 0.7088 | 446.5s
+[fold1] epoch 23 | train_loss 0.1511 | val_loss 1.2385 | val_acc 0.7242 | 433.9s
+[fold1] epoch 24 | train_loss 0.1436 | val_loss 1.2415 | val_acc 0.7258 | 433.5s
+[fold1] epoch 25 | train_loss 0.1399 | val_loss 1.4514 | val_acc 0.7050 | 424.7s
+[fold1] epoch 26 | train_loss 0.1369 | val_loss 1.2376 | val_acc 0.7354 | 421.9s
+[fold1] epoch 27 | train_loss 0.1326 | val_loss 1.3514 | val_acc 0.7203 | 423.8s
+[fold1] epoch 28 | train_loss 0.1307 | val_loss 1.3876 | val_acc 0.7065 | 421.7s
+[fold1] epoch 29 | train_loss 0.1242 | val_loss 1.5530 | val_acc 0.6989 | 423.5s
+[fold1] epoch 30 | train_loss 0.1231 | val_loss 1.2821 | val_acc 0.7238 | 439.5s
+[fold1] training done, evaluating on S1/S2...
+[fold1] S1 (n=13438): ACC 62.34% AUROC 71.97% AUPR 73.32% F1 46.34%
+[fold1] S2 (n=117478): ACC 74.00% AUROC 83.12% AUPR 83.80% F1 69.40%
+[fold2] train rows: 110094, val rows: 15217 (431 batches/epoch)
+[fold2] epoch  1 | train_loss 0.6215 | val_loss 0.5963 | val_acc 0.6566 | 401.9s
+[fold2] epoch  2 | train_loss 0.5477 | val_loss 0.6036 | val_acc 0.6864 | 398.9s
+[fold2] epoch  3 | train_loss 0.4864 | val_loss 0.6033 | val_acc 0.7066 | 396.0s
+[fold2] epoch  4 | train_loss 0.4347 | val_loss 0.7087 | val_acc 0.6997 | 396.1s
+[fold2] epoch  5 | train_loss 0.3904 | val_loss 0.6251 | val_acc 0.7359 | 397.3s
+[fold2] epoch  6 | train_loss 0.3575 | val_loss 0.7064 | val_acc 0.7382 | 395.6s
+[fold2] epoch  7 | train_loss 0.3291 | val_loss 0.7308 | val_acc 0.7402 | 397.2s
+[fold2] epoch  8 | train_loss 0.3043 | val_loss 0.8801 | val_acc 0.7354 | 395.4s
+[fold2] epoch  9 | train_loss 0.2846 | val_loss 0.7921 | val_acc 0.7326 | 399.6s
+[fold2] epoch 10 | train_loss 0.2678 | val_loss 0.9450 | val_acc 0.7359 | 397.5s
+[fold2] epoch 11 | train_loss 0.2491 | val_loss 0.9620 | val_acc 0.7422 | 397.4s
+[fold2] epoch 12 | train_loss 0.2369 | val_loss 0.9525 | val_acc 0.7389 | 397.3s
+[fold2] epoch 13 | train_loss 0.2219 | val_loss 1.0354 | val_acc 0.7389 | 399.0s
+[fold2] epoch 14 | train_loss 0.2141 | val_loss 1.0516 | val_acc 0.7297 | 398.0s
+[fold2] epoch 15 | train_loss 0.2027 | val_loss 1.1311 | val_acc 0.7337 | 407.8s
+[fold2] epoch 16 | train_loss 0.1947 | val_loss 1.1272 | val_acc 0.7302 | 400.0s
+[fold2] epoch 17 | train_loss 0.1850 | val_loss 1.2107 | val_acc 0.7169 | 398.3s
+[fold2] epoch 18 | train_loss 0.1777 | val_loss 1.2803 | val_acc 0.7341 | 395.0s
+[fold2] epoch 19 | train_loss 0.1696 | val_loss 1.2773 | val_acc 0.7154 | 385.9s
+[fold2] epoch 20 | train_loss 0.1682 | val_loss 1.2972 | val_acc 0.7214 | 366.1s
+[fold2] epoch 21 | train_loss 0.1570 | val_loss 1.2513 | val_acc 0.7382 | 364.7s
+[fold2] epoch 22 | train_loss 0.1540 | val_loss 1.4156 | val_acc 0.7251 | 363.9s
+[fold2] epoch 23 | train_loss 0.1540 | val_loss 1.3314 | val_acc 0.7235 | 363.1s
+[fold2] epoch 24 | train_loss 0.1466 | val_loss 1.4267 | val_acc 0.7203 | 363.8s
+[fold2] epoch 25 | train_loss 0.1445 | val_loss 1.5218 | val_acc 0.7159 | 359.5s
+[fold2] epoch 26 | train_loss 0.1344 | val_loss 1.4204 | val_acc 0.7287 | 358.3s
+[fold2] epoch 27 | train_loss 0.1345 | val_loss 1.6069 | val_acc 0.7207 | 360.1s
+[fold2] epoch 28 | train_loss 0.1283 | val_loss 1.5229 | val_acc 0.7191 | 358.4s
+[fold2] epoch 29 | train_loss 0.1304 | val_loss 1.5087 | val_acc 0.7165 | 359.6s
+[fold2] epoch 30 | train_loss 0.1218 | val_loss 1.6707 | val_acc 0.7005 | 358.0s
+[fold2] training done, evaluating on S1/S2...
+[fold2] S1 (n=13870): ACC 58.21% AUROC 68.59% AUPR 69.54% F1 34.27%
+[fold2] S2 (n=119124): ACC 70.53% AUROC 81.34% AUPR 82.00% F1 62.88%
+
+=== Cold-start summary ===
+fold0: S1 ACC 58.30% | S2 ACC 70.92%
+fold1: S1 ACC 62.34% | S2 ACC 74.00%
+fold2: S1 ACC 58.21% | S2 ACC 70.53%
